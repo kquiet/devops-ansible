@@ -1,0 +1,3 @@
+# Managed by Ansible - VMXNET3 & e1000e Optimization
+ACTION=="add", SUBSYSTEM=="net", DRIVERS=="vmxnet3", RUN+="/usr/sbin/ethtool -G $name rx {{ nic_rx_size }} tx {{ nic_tx_size }}"
+ACTION=="add", SUBSYSTEM=="net", DRIVERS=="e1000e", RUN+="/usr/sbin/ethtool -G $name rx {{ nic_rx_size }} tx {{ nic_tx_size }}"

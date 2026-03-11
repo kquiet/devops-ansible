@@ -1,0 +1,60 @@
+---
+- name: "Run OS check"
+  ansible.builtin.include_role:
+    name: devops.utils.assert_run_in_os
+  vars:
+    required_os_families:
+    - "Debian"
+- name: "Check if service_name '{{ service_name }}' is supported"
+  when: service_name not in service_config
+  ansible.builtin.fail:
+    msg: "Error: The service name '{{ service_name }}' doesn't exists as a key in the 'service_config' dictionary."
+- name: Prepare variables
+  block:
+  - name: Retrieve Network Share credentials from Vault
+    ansible.builtin.set_fact:
+      network_share_creds: "{{ lookup('hashi_vault', 'secret=' + vault_smb_secret_path + vault_options) }}"
+    no_log: true
+  - name: Set credentials as facts
+    ansible.builtin.set_fact:
+      network_share_user: "{{ network_share_creds['username'] }}"
+      network_share_pass: "{{ network_share_creds['password'] }}"
+    no_log: true
+  - name: Define backup timestamp
+    ansible.builtin.set_fact:
+      backup_timestamp: "{{ now(fmt='%Y%m%d_%H%M%S', utc=true) }}"
+  - name: Define backup filenames
+    ansible.builtin.set_fact:
+      temp_archive_full_path: "/tmp/backup_{{ service_name }}_{{ backup_timestamp }}.tar.gz"
+      backup_archive_filename: "backup_{{ service_name }}_{{ backup_timestamp }}.tar.gz"
+- name: Compress, Mount, Copy, and Clean up
+  block:
+  - name: "Try apt install samba mount packages"
+    ansible.builtin.include_role:
+      name: devops.utils.try_apt_install
+    vars:
+      try_apt_packages:
+      - "cifs-utils"
+  - name: Compress the directory into a .gz file
+    community.general.archive:
+      path: "{{ service_config[service_name]['backup_path'] }}"
+      dest: "{{ temp_archive_full_path }}"
+      format: gz
+      force_archive: true
+  - name: Copy backup file to network share
+    ansible.builtin.include_role:
+      name: devops.utils.backup_file_to_samba_mount
+    vars:
+      samba_path: "{{ network_share_path }}"
+      samba_user: "{{ network_share_user }}"
+      samba_pass: "{{ network_share_pass }}"
+      backup_name: "{{ service_name }}"
+      local_archive_src_file: "{{ temp_archive_full_path }}"
+      local_archive_dest_filename: "{{ backup_archive_filename }}"
+      prune_backup_file_pattern: "backup_{{ backup_name }}_*.tar.gz"
+      max_backups_to_keep: "{{ max_backups }}"
+  always:
+  - name: Clean up local archive file
+    ansible.builtin.file:
+      path: "{{ temp_archive_full_path }}"
+      state: absent

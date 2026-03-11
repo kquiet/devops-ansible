@@ -1,0 +1,11 @@
+---
+- name: "Run OS check"
+  ansible.builtin.include_role:
+    name: devops.utils.assert_run_in_os
+  vars:
+    required_os_families:
+    - "Debian"
+- name: Perform apt-get upgrade (safe upgrade)
+  ansible.builtin.apt:
+    upgrade: 'safe'
+    update_cache: true

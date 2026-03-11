@@ -1,0 +1,7 @@
+---
+vault_secret_base_path: "kv/data/devops/server/ssh"
+extra_servers:
+- gitlab
+- awx
+vault_extra_options: ""
+vault_options: " url={{ vault_url }} auth_method=approle role_id={{ vault_role_id }} secret_id={{ vault_secret_id }} {{ vault_extra_options }}"

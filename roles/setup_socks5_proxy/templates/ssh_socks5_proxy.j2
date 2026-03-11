@@ -1,0 +1,14 @@
+[Unit]
+Description=Maintain a local socks5 proxy through ssh
+After=network-online.target
+
+[Service]
+User={{ ansible_user }}
+Restart=always
+RestartSec=5s
+KillMode=control-group
+Type=simple
+ExecStart=/usr/bin/ssh -D 127.0.0.1:1080 -NC {{ inventory_hostname }} -o "ServerAliveInterval 10" -o "ServerAliveCountMax 3"
+
+[Install]
+WantedBy=multi-user.target

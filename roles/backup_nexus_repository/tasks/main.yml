@@ -1,0 +1,27 @@
+---
+- name: Get container information
+  community.docker.docker_container_info:
+    name: "{{ nexus_repository_container_name }}"
+  register: container_info
+- name: Print container state
+  ansible.builtin.debug:
+    var: container_info.container.State
+  when: container_info.exists
+- name: "Stop/Start nexus repository before/after backup"
+  block:
+  - name: "Stop nexus repository container"
+    community.docker.docker_compose_v2:
+      project_src: "{{ nexus_repository_docker_compose_project_src }}"
+      state: stopped
+  - name: "Use role 'backup_directory' to backup nexus repository"
+    ansible.builtin.import_role:
+      name: backup_directory
+    vars:
+      service_name: "{{ backup_directory_service_name }}"
+      service_config: "{{ backup_directory_service_config }}"
+  always:
+  - name: "Start nexus repository container only if it's running before backup"
+    community.docker.docker_compose_v2:
+      project_src: "{{ nexus_repository_docker_compose_project_src }}"
+      state: present
+    when: container_info.container.State.Status == 'running'

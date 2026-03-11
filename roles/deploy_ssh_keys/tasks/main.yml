@@ -1,0 +1,65 @@
+---
+- name: 1. Fetch all host keys from Vault (runs once)
+  ansible.builtin.set_fact:
+    # Builds the 'all_vault_keys' dictionary on localhost
+    # e.g., { 'hostA': { 'openssh-public': '...' }, 'hostB': ... }
+    all_vault_keys: "{{ all_vault_keys | default({}) | combine({ 
+        item: lookup('hashi_vault', 'secret=' + vault_secret_base_path + '/' + item + vault_options)
+      }) }}"
+  loop: "{{ groups['all'] }}"
+  run_once: true
+  delegate_to: localhost
+  no_log: true
+- name: 2. Fetch extra host keys from Vault (runs once)
+  ansible.builtin.set_fact:
+    extra_vault_keys: "{{ extra_vault_keys | default({}) | combine({ 
+        item: lookup('hashi_vault', 'secret=' + vault_secret_base_path + '/' + item + vault_options)
+      }) }}"
+  loop: "{{ extra_servers | default([]) }}"
+  run_once: true
+  delegate_to: localhost
+  no_log: true
+- name: 3. Set extended facts
+  ansible.builtin.set_fact:
+    oa_public_keys_list: "{{ (groups['oa'] | default([])) | map('extract', all_vault_keys) | map(attribute='openssh-public') | list }}"
+    extra_public_keys_list: "{{ extra_vault_keys.values() | map(attribute='openssh-public') | list }}"
+  run_once: true
+  delegate_to: localhost
+  no_log: true
+- name: 4. Ensure .ssh directory exists
+  ansible.builtin.file:
+    path: "~/.ssh"
+    state: directory
+    mode: '0700'
+- name: 5. Provision this host's private key
+  ansible.builtin.copy:
+    content: |
+      {{ all_vault_keys[inventory_hostname]['openssh-private'] }}
+    dest: "~/.ssh/id_rsa"
+    mode: '0600'
+  no_log: true
+- name: 6. Provision this host's public key
+  ansible.builtin.copy:
+    content: |
+      {{ all_vault_keys[inventory_hostname]['openssh-public'] }}
+    dest: "~/.ssh/id_rsa.pub"
+    mode: '0644'
+- name: 7. Distribute 'oa' keys to all hosts
+  when: "inventory_hostname in groups['all']"
+  ansible.posix.authorized_key:
+    key: "{{ item }}"
+    user: "{{ ansible_user }}"
+    state: present
+  loop: "{{ oa_public_keys_list | union(extra_public_keys_list) }}"
+- name: 8. Deploy ssh_config for 'oa' hosts
+  when: "inventory_hostname in groups['oa']"
+  ansible.builtin.template:
+    src: oa_ssh_config.j2
+    dest: "~/.ssh/config"
+    mode: '0600'
+- name: 9. Deploy ssh_config for 'internal' hosts
+  when: "inventory_hostname in groups['internal']"
+  ansible.builtin.template:
+    src: internal_ssh_config.j2
+    dest: "~/.ssh/config"
+    mode: '0600'

@@ -1,0 +1,7 @@
+---
+- name: Configure Persistent SSH Reverse Tunnels
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+  - setup_ssh_reverse_tunnel_socks5

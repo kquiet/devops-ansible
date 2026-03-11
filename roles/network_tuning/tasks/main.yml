@@ -1,0 +1,40 @@
+---
+- name: Deploy udev rule template
+  become: true
+  template:
+    src: 10-network-performance.rules.j2
+    dest: /etc/udev/rules.d/10-network-performance.rules
+  register: udev_rule
+
+- name: Reload udev rules immediately
+  become: true
+  command: "{{ item }}"
+  loop:
+    - udevadm control --reload-rules
+    - udevadm trigger
+  when: udev_rule.changed
+
+- name: Deploy sysctl configuration template
+  become: true
+  template:
+    src: 99-network-performance.conf.j2
+    dest: /etc/sysctl.d/99-network-performance.conf
+  register: sysctl_conf
+
+- name: Apply sysctl settings immediately
+  become: true
+  command: sysctl -p /etc/sysctl.d/99-network-performance.conf
+  when: sysctl_conf.changed
+
+- name: Detect active high-performance interfaces
+  shell: "find /sys/class/net/*/device/driver -lname '*vmxnet3*' -o -lname '*e1000e*' | cut -d'/' -f5"
+  register: target_interfaces
+  changed_when: false
+  failed_when: false
+
+- name: Force apply ethtool settings to live interfaces
+  become: true
+  command: "ethtool -G {{ item }} rx {{ nic_rx_size }} tx {{ nic_tx_size }}"
+  loop: "{{ target_interfaces.stdout_lines }}"
+  when: target_interfaces.stdout_lines | length > 0
+  changed_when: false

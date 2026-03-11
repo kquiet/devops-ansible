@@ -1,0 +1,5 @@
+---
+- name: Restart privoxy
+  ansible.builtin.systemd_service:
+    name: privoxy
+    state: restarted

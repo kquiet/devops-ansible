@@ -1,0 +1,10 @@
+---
+nic_rx_size: 4096
+nic_tx_size: 4096
+
+net_tuning:
+  netdev_max_backlog: 5000
+  rmem_max: 16777216
+  wmem_max: 16777216
+  tcp_rmem: "4096 262144 16777216"
+  tcp_wmem: "4096 131072 16777216"

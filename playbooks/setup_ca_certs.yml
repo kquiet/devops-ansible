@@ -1,0 +1,7 @@
+---
+- name: Deploy ssh keys
+  hosts: all
+  become: true
+  gather_facts: false 
+  roles:
+    - setup_ca_certs

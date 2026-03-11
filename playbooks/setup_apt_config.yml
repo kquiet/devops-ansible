@@ -1,0 +1,8 @@
+---
+- name: Configure apt
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+  - gather_basic_facts
+  - setup_apt_config

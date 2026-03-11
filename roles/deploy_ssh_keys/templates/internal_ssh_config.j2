@@ -1,0 +1,15 @@
+Host gitlab
+  User git
+  Hostname {{ hostvars["server01"].ansible_host }}
+  Port 8089
+  IdentityFile ~/.ssh/id_rsa
+
+Host *
+  IdentitiesOnly yes
+  ForwardAgent no
+  ConnectTimeout 10
+  ServerAliveInterval 10
+  ServerAliveCountMax 3
+  ExitOnForwardFailure yes
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null

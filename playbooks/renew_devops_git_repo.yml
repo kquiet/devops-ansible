@@ -1,0 +1,7 @@
+---
+- name: Renew devops git repo
+  hosts: all
+  become: false
+  gather_facts: false
+  roles:
+  - renew_devops_git_repo

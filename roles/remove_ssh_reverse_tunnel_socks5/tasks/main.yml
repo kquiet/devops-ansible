@@ -1,0 +1,34 @@
+---
+- name: Fail if the 'target_machines' variable is not a list
+  when: target_machines is not defined or target_machines is not iterable
+  ansible.builtin.fail:
+    msg: "The variable 'target_machines' must be a list."
+- name: Execute tasks only if target_machines is NOT empty
+  when: target_machines | length > 0
+  block:
+    - name: Check if the SSH reverse tunnel service unit file exists
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/ssh_reverse_tunnel_socks5_{{ item | regex_replace('\\.', '_') }}.service"
+      register: service_unit_status
+      loop: "{{ target_machines }}"
+      loop_control:
+        label: "Checking file for {{ item }}"
+    - name: Stop and disable SSH reverse tunnel service
+      ansible.builtin.systemd_service:
+        name: "ssh_reverse_tunnel_socks5_{{ item.item | regex_replace('\\.', '_') }}.service"
+        state: stopped
+        enabled: false
+      when: item.stat.exists
+      loop: "{{ service_unit_status.results }}"
+      loop_control:
+        label: "Stopping service for {{ item.item }}"
+    - name: Remove systemd unit file for each SSH reverse tunnel service
+      ansible.builtin.file:
+        path: "/etc/systemd/system/ssh_reverse_tunnel_socks5_{{ item | regex_replace('\\.', '_') }}.service"
+        state: absent
+      loop: "{{ target_machines }}"
+      loop_control:
+        label: "Removing unit file for {{ item }}"
+    - name: Systemd daemon-reload (to unregister removed services)
+      ansible.builtin.systemd_service:
+        daemon_reload: true

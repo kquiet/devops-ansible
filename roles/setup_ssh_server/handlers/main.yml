@@ -1,0 +1,12 @@
+---
+- name: Test sshd configuration
+  listen: "Validate and Restart ssh server"
+  ansible.builtin.command: sshd -t
+  register: sshd_test
+  changed_when: false
+  failed_when: sshd_test.rc != 0
+- name: Restart ssh server
+  listen: "Validate and Restart ssh server"
+  ansible.builtin.systemd_service:
+    name: sshd
+    state: restarted
