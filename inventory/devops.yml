@@ -1,7 +1,7 @@
 ---
 all:
   children:
-    oa:
+    office:
       hosts:
         server03:
           ansible_host: 192.168.23.123

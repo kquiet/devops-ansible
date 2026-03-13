@@ -21,7 +21,7 @@
   no_log: true
 - name: 3. Set extended facts
   ansible.builtin.set_fact:
-    oa_public_keys_list: "{{ (groups['oa'] | default([])) | map('extract', all_vault_keys) | map(attribute='openssh-public') | list }}"
+    office_public_keys_list: "{{ (groups['office'] | default([])) | map('extract', all_vault_keys) | map(attribute='openssh-public') | list }}"
     extra_public_keys_list: "{{ extra_vault_keys.values() | map(attribute='openssh-public') | list }}"
   run_once: true
   delegate_to: localhost
@@ -44,17 +44,17 @@
       {{ all_vault_keys[inventory_hostname]['openssh-public'] }}
     dest: "~/.ssh/id_rsa.pub"
     mode: '0644'
-- name: 7. Distribute 'oa' keys to all hosts
+- name: 7. Distribute 'office' keys to all hosts
   when: "inventory_hostname in groups['all']"
   ansible.posix.authorized_key:
     key: "{{ item }}"
     user: "{{ ansible_user }}"
     state: present
-  loop: "{{ oa_public_keys_list | union(extra_public_keys_list) }}"
-- name: 8. Deploy ssh_config for 'oa' hosts
-  when: "inventory_hostname in groups['oa']"
+  loop: "{{ office_public_keys_list | union(extra_public_keys_list) }}"
+- name: 8. Deploy ssh_config for 'office' hosts
+  when: "inventory_hostname in groups['office']"
   ansible.builtin.template:
-    src: oa_ssh_config.j2
+    src: office_ssh_config.j2
     dest: "~/.ssh/config"
     mode: '0600'
 - name: 9. Deploy ssh_config for 'internal' hosts
