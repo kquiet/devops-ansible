@@ -1,0 +1,6 @@
+---
+vault_secret_base_path: "kv/data/devops/ca/root"
+vault_secret_key: "tls.crt"
+vault_extra_options: ""
+vault_options: " url={{ vault_url }} auth_method=approle role_id={{ vault_role_id }} secret_id={{ vault_secret_id }} {{ vault_extra_options }}"
+ca_cert_destination_name: "zooDeveloperPlatformRootCA.crt"

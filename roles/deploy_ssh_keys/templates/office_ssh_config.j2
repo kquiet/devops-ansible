@@ -1,0 +1,108 @@
+Host gitlab
+  User git
+  Hostname {{ hostvars["server01"].ansible_host }}
+  Port 8089
+  IdentityFile ~/.ssh/id_rsa
+
+Host server03
+  User {{ ansible_user }}
+  Hostname {{ hostvars["server03"].ansible_host }}
+  Port {{ hostvars["server03"].ansible_port }}
+  IdentityFile ~/.ssh/id_rsa
+
+Host server02
+  User {{ ansible_user }}
+  Hostname {{ hostvars["server02"].ansible_host }}
+  Port {{ hostvars["server02"].ansible_port }}
+  IdentityFile ~/.ssh/id_rsa
+
+Host server01
+  User {{ ansible_user }}
+  Hostname {{ hostvars["server01"].ansible_host }}
+  Port {{ hostvars["server01"].ansible_port }}
+  IdentityFile ~/.ssh/id_rsa
+
+Host server04
+  User {{ ansible_user }}
+  Hostname {{ hostvars["server04"].ansible_host }}
+  Port {{ hostvars["server04"].ansible_port }}
+  IdentityFile ~/.ssh/id_rsa
+
+Host bastion01
+  User {{ ansible_user }}
+  Hostname 35.212.195.32
+  Port 443
+  IdentityFile ~/.ssh/id_rsa
+
+Host dev-frontend
+  User {{ ansible_user }}
+  Hostname 192.168.0.14
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host dev-backend
+  User {{ ansible_user }}
+  Hostname 192.168.15.197
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host dev-opensearch
+  User {{ ansible_user }}
+  Hostname 192.168.15.192
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host stage-frontend
+  User {{ ansible_user }}
+  Hostname 192.168.0.9
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host stage-backend
+  User {{ ansible_user }}
+  Hostname 192.168.0.12
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host stage-opensearch
+  User {{ ansible_user }}
+  Hostname 192.168.0.7
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host prod-frontend
+  User {{ ansible_user }}
+  Hostname 192.168.0.15
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host prod-backend
+  User {{ ansible_user }}
+  Hostname 192.168.0.20
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host prod-opensearch
+  User {{ ansible_user }}
+  Hostname 192.168.100.7
+  Port 22
+  ProxyJump bastion01
+  IdentityFile ~/.ssh/id_rsa
+
+Host *
+  IdentitiesOnly yes
+  ForwardAgent no
+  ConnectTimeout 10
+  ServerAliveInterval 10
+  ServerAliveCountMax 3
+  ExitOnForwardFailure yes
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null

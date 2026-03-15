@@ -1,0 +1,9 @@
+---
+k8s_context: "server01-k3s"
+k8s_namespace: "vault"
+k8s_pod_name: "vault-0"
+vault_smb_secret_path: "kv/data/devops/server/smb/someserver01"
+vault_extra_options: ""
+vault_options: " url={{ vault_url }} auth_method=approle role_id={{ vault_role_id }} secret_id={{ vault_secret_id }} {{ vault_extra_options }}"
+network_share_path: "//someserver01.oa.internal/somepath$/devops_backup"
+max_backups: 28

@@ -1,0 +1,84 @@
+---
+- name: Prepare GitLab Backup Variables
+  block:
+  - name: Retrieve Network Share credentials from Vault
+    ansible.builtin.set_fact:
+      network_share_creds: "{{ lookup('hashi_vault', 'secret=' + vault_smb_secret_path + vault_options) }}"
+    no_log: true
+  - name: Set credentials as facts
+    ansible.builtin.set_fact:
+      network_share_user: "{{ network_share_creds['username'] }}"
+      network_share_pass: "{{ network_share_creds['password'] }}"
+    no_log: true
+  - name: Define backup timestamp
+    ansible.builtin.set_fact:
+      backup_timestamp: "{{ now(fmt='%Y%m%d_%H%M%S', utc=true) }}"
+  - name: Define backup filenames
+    ansible.builtin.set_fact:
+      local_temp_dir: "/tmp/gitlab_backup_tmp_{{ backup_timestamp }}"
+      # Paths for the final compressed archive
+      local_archive_full_path: "/tmp/backup_gitlab_{{ backup_timestamp }}.tar"
+      backup_archive_filename: "backup_gitlab_{{ backup_timestamp }}.tar"
+- name: Execute GitLab Backup Procedure
+  block:
+  - name: Create temporary directory
+    ansible.builtin.file:
+      path: "{{ local_temp_dir }}"
+      state: directory
+      mode: '0755'
+  - name: Create the configuration archive
+    community.general.archive:
+      path: "{{ gitlab_config_dir }}"
+      dest: "{{ local_temp_dir }}/gitlab-config-{{ backup_timestamp }}.tar"
+      format: tar
+  - name: Execute 'gitlab-backup create' inside the gitlab container
+    ansible.builtin.shell:
+      cmd: "docker exec -t {{ gitlab_container_name }} gitlab-backup create"
+  - name: Find the latest backup file created inside the gitlab container
+    ansible.builtin.shell:
+      cmd: |
+        set -o pipefail
+        docker exec -t {{ gitlab_container_name }} ls -A1 {{ gitlab_container_backup_path }}/ | grep .tar | sort -n | tail -n 1
+      executable: /bin/bash
+    register: latest_gitlab_container_backup
+    changed_when: false # This is an informational command
+  - name: Clean up the file name from carriage returns and set fact
+    ansible.builtin.set_fact:
+      gitlab_container_backup_file_name: "{{ latest_gitlab_container_backup.stdout | trim }}"
+    when: latest_gitlab_container_backup.stdout is defined and latest_gitlab_container_backup.stdout | length > 0
+  - name: Copy backup file from the gitlab container to host's temporary directory
+    ansible.builtin.shell:
+      cmd: "docker cp {{ gitlab_container_name }}:{{ gitlab_container_backup_path }}/{{ gitlab_container_backup_file_name }} {{ local_temp_dir }}/"
+    when: gitlab_container_backup_file_name is defined
+  - name: Archive the entire temp directory
+    community.general.archive:
+      path: "{{ local_temp_dir }}"
+      dest: "{{ local_archive_full_path }}"
+      format: tar
+  - name: Transfer to Network Share
+    ansible.builtin.include_role:
+      name: devops.utils.backup_file_to_samba_mount
+    vars:
+      samba_path: "{{ network_share_path }}"
+      samba_user: "{{ network_share_user }}"
+      samba_pass: "{{ network_share_pass }}"
+      backup_name: "gitlab"
+      local_archive_src_file: "{{ local_archive_full_path }}"
+      local_archive_dest_filename: "{{ backup_archive_filename }}"
+      prune_backup_file_pattern: "backup_gitlab_*.tar"
+      max_backups_to_keep: "{{ max_backups }}"
+  always:
+    # Cleanup Local Artifacts
+  - name: Cleanup local compressed archive on Ansible Controller
+    ansible.builtin.file:
+      path: "{{ local_archive_full_path }}"
+      state: absent
+  - name: Cleanup temporary staging directory on the Host
+    ansible.builtin.file:
+      path: "{{ local_temp_dir }}"
+      state: absent
+    # Cleanup Container Artifacts
+  - name: Remove data backup file from Container
+    ansible.builtin.shell:
+      cmd: "docker exec -t {{ gitlab_container_name }} rm {{ gitlab_container_backup_path }}/{{ gitlab_container_backup_file_name }}"
+    when: gitlab_container_backup_file_name is defined

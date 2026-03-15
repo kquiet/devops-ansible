@@ -1,0 +1,16 @@
+---
+- name: Fetch CA certificate from Vault
+  ansible.builtin.set_fact:
+    ca_cert_content: "{{ lookup('hashi_vault', 'secret=' + vault_secret_base_path + vault_options)[vault_secret_key] }}"
+  run_once: true
+  delegate_to: localhost
+  no_log: true
+- name: Install CA certificate on remote hosts
+  ansible.builtin.copy:
+    content: |
+      {{ ca_cert_content }}
+    dest: "/usr/local/share/ca-certificates/{{ ca_cert_destination_name }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Update CA trust store

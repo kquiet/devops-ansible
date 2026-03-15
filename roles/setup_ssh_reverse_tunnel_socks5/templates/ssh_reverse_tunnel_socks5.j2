@@ -1,0 +1,14 @@
+[Unit]
+Description=Persistent SSH Reverse Tunnel to {{ item }}
+After=network-online.target
+
+[Service]
+User={{ ansible_user }}
+Restart=always
+RestartSec=5s
+KillMode=control-group
+Type=simple
+ExecStart=/usr/bin/ssh -NR 127.0.0.1:1080:127.0.0.1:1080 {{ item }} -o "ExitOnForwardFailure yes" -o "ServerAliveInterval 10" -o "ServerAliveCountMax 3"
+
+[Install]
+WantedBy=multi-user.target

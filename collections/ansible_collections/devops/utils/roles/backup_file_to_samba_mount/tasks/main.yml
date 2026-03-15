@@ -1,0 +1,50 @@
+---
+- name: Mount, Copy, and Clean up Old Backups
+  block:
+  - name: Configure mount variables
+    ansible.builtin.set_fact:
+      local_mount_point: "/mnt/temp_ansible_backup_service_{{ backup_name }}_{{ now(fmt='%Y%m%d_%H%M%S', utc=true) }}"
+    no_log: true
+  - name: Create local mount point directory
+    ansible.builtin.file:
+      path: "{{ local_mount_point }}"
+      state: directory
+      mode: '0755'
+  - name: Mount network share
+    ansible.posix.mount:
+      src: "{{ samba_path }}"
+      path: "{{ local_mount_point }}"
+      fstype: cifs
+      opts: "username={{ samba_user }},password={{ samba_pass }},iocharset=utf8"
+      state: ephemeral
+  - name: Ensure sub-directory exists
+    ansible.builtin.file:
+      path: "{{ local_mount_point }}/{{ backup_name }}"
+      state: directory
+  - name: Copy backup file to network share
+    ansible.builtin.copy:
+      src: "{{ local_archive_src_file }}"
+      remote_src: true
+      dest: "{{ local_mount_point }}/{{ backup_name }}/{{ local_archive_dest_filename }}"
+      mode: '0644'
+  - name: Find all existing backups on the share
+    ansible.builtin.find:
+      paths: "{{ local_mount_point }}/{{ backup_name }}"
+      patterns: "{{ prune_backup_file_pattern }}"
+    register: backup_files
+  - name: Prune old backups
+    ansible.builtin.file:
+      path: "{{ item.path }}"
+      state: absent
+    # Sort files by path (oldest first), and then select all except the last 'max_backups_to_keep'
+    loop: "{{ (backup_files.files | sort(attribute='path'))[:-max_backups_to_keep] }}"
+    when: backup_files.files | length > max_backups_to_keep
+  always:
+  - name: Unmount network share
+    ansible.posix.mount:
+      path: "{{ local_mount_point }}"
+      state: unmounted
+  - name: Remove local mount point directory
+    ansible.builtin.file:
+      path: "{{ local_mount_point }}"
+      state: absent

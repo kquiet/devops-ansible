@@ -1,0 +1,7 @@
+---
+- name: Deploy ssh keys
+  hosts: all
+  become: false
+  gather_facts: false 
+  roles:
+    - deploy_ssh_keys

@@ -1,0 +1,5 @@
+---
+- name: Restart socks5 proxy service
+  ansible.builtin.systemd_service:
+    name: ssh_socks5_proxy
+    state: restarted

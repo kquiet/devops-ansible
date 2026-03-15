@@ -1,0 +1,9 @@
+---
+- name: Ensure custom sshd settings are in place
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config.d/10-ansible-custom.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Validate and Restart ssh server

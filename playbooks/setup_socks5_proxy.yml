@@ -1,0 +1,9 @@
+---
+- name: Setup socks5 proxy
+  hosts: all
+  become: true
+  gather_facts: false
+  environment: "{{ proxy_env if 'internal' in group_names else {} }}"
+  roles:
+  - gather_basic_facts
+  - setup_socks5_proxy

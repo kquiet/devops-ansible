@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority-data: {{ k8s_server_ca | b64encode }}
+    server: https://{{ hostvars["server01"].ansible_host }}:6443
+  name: server01-k3s
+contexts:
+- context:
+    cluster: server01-k3s
+    user: server01-k3s
+  name: server01-k3s
+current-context: server01-k3s
+users:
+- name: server01-k3s
+  user:
+    client-certificate-data: {{ k8s_client_cert | b64encode }}
+    client-key-data: {{ k8s_client_key | b64encode }}

@@ -1,0 +1,27 @@
+---
+all:
+  children:
+    office:
+      hosts:
+        server03:
+          ansible_host: 192.168.23.123
+          ansible_port: 2201
+        server02:
+          ansible_host: 192.168.23.168
+          ansible_port: 22
+    internal:
+      hosts:
+        server01:
+          ansible_host: 192.168.201.83
+          ansible_port: 22
+        server04:
+          ansible_host: 192.168.253.61
+          ansible_port: 22
+      vars:
+        proxy_env:
+          http_proxy: http://192.168.0.1:3128
+          https_proxy: http://192.168.0.1:3128
+          HTTP_PROXY: http://192.168.0.1:3128
+          HTTPS_PROXY: http://192.168.0.1:3128
+          no_proxy: localhost,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,.cluster.local,.svc.internal
+          NO_PROXY: localhost,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,.cluster.local,.svc.internal

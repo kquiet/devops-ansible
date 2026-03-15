@@ -1,0 +1,8 @@
+---
+- name: Deploy k8s config
+  hosts: all
+  become: false
+  gather_facts: false 
+  roles:
+    - gather_basic_facts
+    - setup_k8s_config

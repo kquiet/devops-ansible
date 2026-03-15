@@ -1,0 +1,6 @@
+---
+- name: Restart ssh reverse tunnel service
+  ansible.builtin.systemd_service:
+    name: ssh_reverse_tunnel_socks5_{{ item | regex_replace('\\.', '_') }}.service
+    state: restarted
+  loop: "{{ target_machines }}"

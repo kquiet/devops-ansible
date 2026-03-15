@@ -1,0 +1,25 @@
+---
+- name: "Run OS check"
+  ansible.builtin.include_role:
+    name: devops.utils.assert_run_in_os
+  vars:
+    required_os_families:
+    - "Debian"
+- name: Prepare Vault Variables
+  block:
+  - name: Retrieve k8s kubeconfig data from Vault
+    ansible.builtin.set_fact:
+      k8s_server: "{{ lookup('hashi_vault', 'secret=kv/data/devops/k3s/kubeconfig/server' + vault_options) }}"
+      k8s_client: "{{ lookup('hashi_vault', 'secret=kv/data/devops/k3s/kubeconfig/admin' + vault_options) }}"
+    no_log: true
+  - name: Set credentials as facts
+    ansible.builtin.set_fact:
+      k8s_server_ca: "{{ k8s_server['certificate-authority-data'] }}"
+      k8s_client_cert: "{{ k8s_client['client-certificate-data'] }}"
+      k8s_client_key: "{{ k8s_client['client-key-data'] }}"
+    no_log: true
+- name: Deploy kubeconfig
+  ansible.builtin.template:
+    src: config.j2
+    dest: "~/.kube/config"
+    mode: '0600'

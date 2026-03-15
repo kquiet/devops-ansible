@@ -1,0 +1,26 @@
+---
+- name: Fail if the 'target_machines' variable is not a list
+  when: target_machines is not defined or target_machines is not iterable
+  ansible.builtin.fail:
+    msg: "The variable 'target_machines' must be a list."
+- name: Execute tasks only if target_machines is NOT empty
+  when: target_machines | length > 0
+  block:
+  - name: Create systemd unit file for each SSH reverse tunnel socks5 service
+    ansible.builtin.template:
+      src: ssh_reverse_tunnel_socks5.j2
+      dest: /etc/systemd/system/ssh_reverse_tunnel_socks5_{{ item | regex_replace('\\.', '_') }}.service
+      owner: root
+      group: root
+      mode: '0644'
+    loop: "{{ target_machines }}"
+    notify: Restart ssh reverse tunnel service
+  - name: Systemd daemon-reload
+    ansible.builtin.systemd_service:
+      daemon_reload: true
+  - name: Ensure SSH reverse tunnel service is started and enabled
+    ansible.builtin.systemd_service:
+      name: ssh_reverse_tunnel_socks5_{{ item | regex_replace('\\.', '_') }}.service
+      state: started
+      enabled: true
+    loop: "{{ target_machines }}"

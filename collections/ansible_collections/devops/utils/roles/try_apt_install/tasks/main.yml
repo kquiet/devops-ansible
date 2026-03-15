@@ -1,0 +1,22 @@
+---
+- name: "Check if 'try_apt_packages' is defined and is a list"
+  ansible.builtin.assert:
+    that:
+      - try_apt_packages is defined
+      - try_apt_packages is iterable
+      - try_apt_packages is not string
+      - try_apt_packages | length > 0
+    fail_msg: "The 'try_apt_packages' variable is required. It must be a non-empty list of packages."
+- name: Try to install packages without cache updated
+  ansible.builtin.apt:
+    name: "{{ try_apt_packages }}"
+    state: present
+    update_cache: false
+  register: apt_try
+  ignore_errors: true
+- name: Install packages with cache updated
+  when: apt_try.failed
+  ansible.builtin.apt:
+    name: "{{ try_apt_packages }}"
+    state: present
+    update_cache: true

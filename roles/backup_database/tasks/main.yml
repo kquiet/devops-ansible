@@ -1,0 +1,115 @@
+---
+- name: "Run OS check"
+  ansible.builtin.include_role:
+    name: devops.utils.assert_run_in_os
+  vars:
+    required_os_families:
+    - "Debian"
+- name: "Check if db_name '{{ db_name }}' is supported"
+  when: db_name not in db_config
+  ansible.builtin.fail:
+    msg: "Error: The database name '{{ db_name }}' doesn't exists as a key in the 'db_config' dictionary."
+- name: Prepare variables
+  block:
+  - name: Retrieve Postgres and Network Share credentials from Vault
+    ansible.builtin.set_fact:
+      db_creds: "{{ lookup('hashi_vault', 'secret=' + vault_db_secret_path + vault_options) }}"
+      network_share_creds: "{{ lookup('hashi_vault', 'secret=' + vault_smb_secret_path + vault_options) }}"
+    no_log: true
+  - name: Set credentials as facts
+    ansible.builtin.set_fact:
+      db_user: "{{ db_creds['admin_account'] }}"
+      db_pass: "{{ db_creds['admin_password'] }}"
+      network_share_user: "{{ network_share_creds['username'] }}"
+      network_share_pass: "{{ network_share_creds['password'] }}"
+    no_log: true
+  - name: Define backup timestamp
+    ansible.builtin.set_fact:
+      backup_timestamp: "{{ now(fmt='%Y%m%d_%H%M%S', utc=true) }}"
+  - name: Define backup filenames
+    ansible.builtin.set_fact:
+      temp_sql_full_path: "/tmp/backup_{{ db_name }}_{{ backup_timestamp }}.sql"
+      temp_archive_full_path: "/tmp/backup_{{ db_name }}_{{ backup_timestamp }}.sql.gz"
+      backup_archive_filename: "backup_{{ db_name }}_{{ backup_timestamp }}.sql.gz"
+- name: Prepare packages and Dump for PostgreSQL
+  when: db_name in ['postgresql']
+  block:
+  - name: "(PostgreSQL) Try apt install prerequisites"
+    ansible.builtin.include_role:
+      name: devops.utils.try_apt_install
+    vars:
+      try_apt_packages:
+      - curl
+      - ca-certificates
+      - gnupg
+  - name: (PostgreSQL) Get GPG key
+    ansible.builtin.command:
+      cmd: "curl -o /etc/apt/keyrings/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+      creates: /etc/apt/keyrings/apt.postgresql.org.asc
+  - name: (PostgreSQL) Add APT repository
+    ansible.builtin.apt_repository:
+      repo: "deb [signed-by=/etc/apt/keyrings/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+      filename: pgdg
+      state: present
+      update_cache: false
+  - name: "(PostgreSQL) Try apt install postgresql client packages"
+    ansible.builtin.include_role:
+      name: devops.utils.try_apt_install
+    vars:
+      try_apt_packages:
+      - "postgresql-client-17"
+  - name: (PostgreSQL) Run pg_dumpall to create a local SQL dump
+    ansible.builtin.shell:
+      cmd: "pg_dumpall -U {{ db_user }} > {{ temp_sql_full_path }}"
+    environment:
+      PGPASSWORD: "{{ db_pass }}"
+      PGHOST: "{{ db_host }}"
+      PGPORT: "{{ db_port }}"
+- name: Prepare packages and Dump for MySQL/MariaDB
+  when: db_name in ['mysql', 'mariadb']
+  block:
+  - name: "(MySQL/MariaDB) Try apt install mariadb client packages"
+    ansible.builtin.include_role:
+      name: devops.utils.try_apt_install
+    vars:
+      try_apt_packages:
+      - "mariadb-client-10.6"
+  - name: (MySQL/MariaDB) Run mariadb-dump to create a local SQL dump
+    ansible.builtin.shell:
+      cmd: "mariadb-dump -h {{ db_host }} -P {{ db_port }} -u {{ db_user }} --all-databases > {{ temp_sql_full_path }}"
+    environment:
+      MYSQL_PWD: "{{ db_pass }}"
+- name: Compress, Mount, Copy, and Clean up
+  block:
+  - name: "Try apt install samba mount packages"
+    ansible.builtin.include_role:
+      name: devops.utils.try_apt_install
+    vars:
+      try_apt_packages:
+      - "cifs-utils"
+  - name: Compress the SQL dump into a .gz file
+    community.general.archive:
+      path: "{{ temp_sql_full_path }}"
+      dest: "{{ temp_archive_full_path }}"
+      format: gz
+  - name: Copy backup file to network share
+    ansible.builtin.include_role:
+      name: devops.utils.backup_file_to_samba_mount
+    vars:
+      samba_path: "{{ network_share_path }}"
+      samba_user: "{{ network_share_user }}"
+      samba_pass: "{{ network_share_pass }}"
+      backup_name: "{{ db_name }}"
+      local_archive_src_file: "{{ temp_archive_full_path }}"
+      local_archive_dest_filename: "{{ backup_archive_filename }}"
+      prune_backup_file_pattern: "backup_{{ backup_name }}_*.sql.gz"
+      max_backups_to_keep: "{{ max_backups }}"
+  always:
+  - name: Clean up local SQL file
+    ansible.builtin.file:
+      path: "{{ temp_sql_full_path }}"
+      state: absent
+  - name: Clean up local archive file
+    ansible.builtin.file:
+      path: "{{ temp_archive_full_path }}"
+      state: absent

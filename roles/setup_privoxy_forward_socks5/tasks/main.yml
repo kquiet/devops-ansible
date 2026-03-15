@@ -1,0 +1,26 @@
+---
+- name: "Run OS check"
+  ansible.builtin.include_role:
+    name: devops.utils.assert_run_in_os
+  vars:
+    required_os_families:
+    - "Debian"
+- name: "Ensure privoxy is installed"
+  ansible.builtin.include_role:
+    name: devops.utils.try_apt_install
+  vars:
+    try_apt_packages:
+    - privoxy
+- name: Configure privoxy with the required settings
+  ansible.builtin.template:
+    src: privoxy_config.j2
+    dest: /etc/privoxy/config
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart privoxy
+- name: Ensure privoxy service is running and enabled
+  ansible.builtin.systemd_service:
+    name: privoxy
+    state: started
+    enabled: true

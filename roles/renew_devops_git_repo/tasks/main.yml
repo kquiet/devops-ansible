@@ -1,0 +1,12 @@
+---
+- name: Ensure the parent directory ~/git exists
+  ansible.builtin.file:
+    path: '~/git'
+    state: directory
+    mode: '0775'
+- name: Clone or Pull the devops repository
+  ansible.builtin.git:
+    repo: 'ssh://gitlab/zoo/devops.git'
+    dest: '~/git/devops'
+    version: main
+    update: true

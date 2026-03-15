@@ -1,0 +1,6 @@
+---
+- name: Update CA trust store
+  ansible.builtin.command:
+    cmd: update-ca-certificates
+  register: update_ca_result
+  changed_when: "'Adding' in update_ca_result.stdout"

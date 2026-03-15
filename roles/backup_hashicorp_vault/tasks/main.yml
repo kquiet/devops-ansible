@@ -1,0 +1,96 @@
+---
+- name: "Run OS check"
+  ansible.builtin.include_role:
+    name: devops.utils.assert_run_in_os
+  vars:
+    required_os_families:
+    - "Debian"
+- name: Prepare Vault Backup Variables
+  block:
+  - name: Retrieve Network Share credentials from Vault
+    ansible.builtin.set_fact:
+      network_share_creds: "{{ lookup('hashi_vault', 'secret=' + vault_smb_secret_path + vault_options) }}"
+    no_log: true
+  - name: Set credentials as facts
+    ansible.builtin.set_fact:
+      network_share_user: "{{ network_share_creds['username'] }}"
+      network_share_pass: "{{ network_share_creds['password'] }}"
+    no_log: true
+  - name: Define backup timestamp
+    ansible.builtin.set_fact:
+      backup_timestamp: "{{ now(fmt='%Y%m%d_%H%M%S', utc=true) }}"
+  - name: Define backup filenames
+    ansible.builtin.set_fact:
+      # The raw snapshot file inside the pod and locally
+      pod_temp_path: "/tmp/backup_hashicorp_vault_{{ backup_timestamp }}.snap"
+      local_temp_snapshot: "/tmp/backup_hashicorp_vault_{{ backup_timestamp }}.snap"
+      # The compressed archive for the network share
+      local_archive_full_path: "/tmp/backup_hashicorp_vault_{{ backup_timestamp }}.snap.gz"
+      backup_archive_filename: "backup_hashicorp_vault_{{ backup_timestamp }}.snap.gz"
+- name: Execute Vault Snapshot (K8s)
+  block:
+  - name: Ensure Python pip is installed
+    ansible.builtin.include_role:
+      name: devops.utils.try_apt_install
+    vars:
+      try_apt_packages:
+      - "python3-pip"
+  - name: Install 'kubernetes' python library
+    ansible.builtin.pip:
+      name: kubernetes
+      state: present
+  - name: Create Snapshot inside Vault Pod
+    kubernetes.core.k8s_exec:
+      context: "{{ k8s_context }}"
+      namespace: "{{ k8s_namespace }}"
+      pod: "{{ k8s_pod_name }}"
+      command: >-
+        /bin/sh -c "
+        KUBE_SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) &&
+        export VAULT_TOKEN=$(vault write -field=token auth/kubernetes/login role=snapshot jwt=$KUBE_SA_TOKEN) &&
+        vault operator raft snapshot save {{ pod_temp_path }}"
+    become: false
+  - name: Copy snapshot from Pod to Ansible Controller
+    kubernetes.core.k8s_cp:
+      context: "{{ k8s_context }}"
+      namespace: "{{ k8s_namespace }}"
+      pod: "{{ k8s_pod_name }}"
+      state: from_pod
+      remote_path: "{{ pod_temp_path }}"
+      local_path: "{{ local_temp_snapshot }}"
+    become: false
+  - name: Compress snapshot into .gz
+    community.general.archive:
+      path: "{{ local_temp_snapshot }}"
+      dest: "{{ local_archive_full_path }}"
+      format: gz
+  - name: Transfer to Network Share
+    ansible.builtin.include_role:
+      name: devops.utils.backup_file_to_samba_mount
+    vars:
+      samba_path: "{{ network_share_path }}"
+      samba_user: "{{ network_share_user }}"
+      samba_pass: "{{ network_share_pass }}"
+      backup_name: "hashicorp_vault"
+      local_archive_src_file: "{{ local_archive_full_path }}"
+      local_archive_dest_filename: "{{ backup_archive_filename }}"
+      prune_backup_file_pattern: "backup_hashicorp_vault_*.snap.gz"
+      max_backups_to_keep: "{{ max_backups }}"
+  always:
+  # Cleanup Local Artifacts
+  - name: Cleanup local compressed archive
+    ansible.builtin.file:
+      path: "{{ local_archive_full_path }}"
+      state: absent
+  - name: Cleanup local raw snapshot
+    ansible.builtin.file:
+      path: "{{ local_temp_snapshot }}"
+      state: absent
+  # Cleanup Remote Pod Artifacts
+  - name: Cleanup snapshot inside Vault Pod
+    kubernetes.core.k8s_exec:
+      context: "{{ k8s_context }}"
+      namespace: "{{ k8s_namespace }}"
+      pod: "{{ k8s_pod_name }}"
+      command: "rm -f {{ pod_temp_path }}"
+    become: false

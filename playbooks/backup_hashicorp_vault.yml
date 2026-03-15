@@ -1,0 +1,12 @@
+- name: Backup Hashicorp Vault to Network Share
+  hosts: all
+  gather_facts: false
+  become: true
+  environment: "{{ proxy_env if 'internal' in group_names else {} }}"
+  pre_tasks:
+    - name: Make sure run by only one host
+      ansible.builtin.include_role:
+        name: devops.utils.assert_run_by_only_one
+  roles:
+    - gather_basic_facts
+    - backup_hashicorp_vault

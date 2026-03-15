@@ -1,0 +1,8 @@
+---
+backup_directory_service_name: "nexus-repository"
+backup_directory_service_config:
+  nexus-repository:
+    backup_path:
+    - "/opt/docker_volumes/nexus-repository/nexus-data"
+nexus_repository_docker_compose_project_src: "/home/devops/git/devops/scripts/server03/nexus-repository"
+nexus_repository_container_name: "nexus-repository"
